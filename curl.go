@@ -1,10 +1,10 @@
 package curl
 
 import (
-	"binance-news/curl/presets"
-	"binance-news/curl/types"
 	"bytes"
 	"fmt"
+	"github.com/plandem/curl-impersonate/presets"
+	"github.com/plandem/curl-impersonate/types"
 	"io"
 	"net/http"
 	"os"
@@ -40,6 +40,11 @@ func New(options ...Option) *Curl {
 	}
 
 	curl.Set(options...)
+
+	if curl.binary == "" {
+		curl.binary = "curl"
+	}
+
 	return curl
 }
 

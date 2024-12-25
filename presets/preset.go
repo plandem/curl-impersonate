@@ -1,7 +1,7 @@
 package presets
 
 import (
-	"binance-news/curl/types"
+	"github.com/plandem/curl-impersonate/types"
 	"math/rand"
 )
 
