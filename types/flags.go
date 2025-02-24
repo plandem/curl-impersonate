@@ -44,6 +44,8 @@ func (f *Flags) Generate() []string {
 			}
 		case int:
 			result = append(result, fmt.Sprintf("--%s", k), fmt.Sprintf("%d", v))
+		case float64:
+			result = append(result, fmt.Sprintf("--%s", k), fmt.Sprintf("%.4f", v))
 		case string:
 			result = append(result, fmt.Sprintf("--%s", k), v.(string))
 		default:
