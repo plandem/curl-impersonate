@@ -1,6 +1,7 @@
 package curl
 
 import (
+	"bytes"
 	"errors"
 	"testing"
 )
@@ -69,7 +70,7 @@ func TestCurlLogic(t *testing.T) {
 
 func TestExtractAllResponses(t *testing.T) {
 	// Sample output with multiple HTTP responses using \r\n as line endings
-	output := "HTTP/1.0 200 Connection established\r\n" +
+	output := []byte("HTTP/1.0 200 Connection established\r\n" +
 		"HTTP/2 302 \r\n" +
 		"server: nginx\r\n" +
 		"date: Sun, 02 Feb 2025 17:27:30 GMT\r\n" +
@@ -87,7 +88,7 @@ func TestExtractAllResponses(t *testing.T) {
 		"cache-control: private, max-age=0\r\n" +
 		"content-type: text/html; charset=ISO-8859-1\r\n" +
 		"\r\n" +
-		"<!doctype html><html itemscope=\"\" itemtype=\"http://schema.org/WebPage\" lang=\"en-GB\">"
+		"<!doctype html><html itemscope=\"\" itemtype=\"http://schema.org/WebPage\" lang=\"en-GB\">")
 
 	// Call extractAllResponses
 	headers, lastBody, err := extractAllResponses(output)
@@ -102,39 +103,39 @@ func TestExtractAllResponses(t *testing.T) {
 	}
 
 	// Test Case 2: Verify the content of the headers
-	expectedHeaders := []string{
-		"HTTP/1.0 200 Connection established\r\n" +
+	expectedHeaders := [][]byte{
+		[]byte("HTTP/1.0 200 Connection established\r\n" +
 			"HTTP/2 302 \r\n" +
 			"server: nginx\r\n" +
 			"date: Sun, 02 Feb 2025 17:27:30 GMT\r\n" +
-			"content-type: text/html; charset=UTF-8",
-		"HTTP/1.0 200 Connection established\r\n" +
+			"content-type: text/html; charset=UTF-8"),
+		[]byte("HTTP/1.0 200 Connection established\r\n" +
 			"HTTP/2 301 \r\n" +
 			"location: https://www.google.com/\r\n" +
-			"content-type: text/html; charset=UTF-8",
-		"HTTP/1.0 200 Connection established\r\n" +
+			"content-type: text/html; charset=UTF-8"),
+		[]byte("HTTP/1.0 200 Connection established\r\n" +
 			"HTTP/2 200 \r\n" +
 			"date: Sun, 02 Feb 2025 17:27:38 GMT\r\n" +
 			"expires: -1\r\n" +
 			"cache-control: private, max-age=0\r\n" +
-			"content-type: text/html; charset=ISO-8859-1",
+			"content-type: text/html; charset=ISO-8859-1"),
 	}
 	for i, header := range headers {
-		if header != expectedHeaders[i] {
+		if !bytes.Equal(header, expectedHeaders[i]) {
 			t.Errorf("Header mismatch at index %d\nExpected:\n%s\nGot:\n%s", i, expectedHeaders[i], header)
 		}
 	}
 
 	// Test Case 3: Verify the last body
-	expectedLastBody := "<!doctype html><html itemscope=\"\" itemtype=\"http://schema.org/WebPage\" lang=\"en-GB\">"
-	if lastBody != expectedLastBody {
+	expectedLastBody := []byte("<!doctype html><html itemscope=\"\" itemtype=\"http://schema.org/WebPage\" lang=\"en-GB\">")
+	if !bytes.Equal(lastBody, expectedLastBody) {
 		t.Errorf("Expected last body '%s', got '%s'", expectedLastBody, lastBody)
 	}
 }
 
 func TestExtractAllResponses_EmptyInput(t *testing.T) {
 	// Test Case: Empty input
-	output := ""
+	output := []byte("")
 	_, _, err := extractAllResponses(output)
 
 	// Check if an error is returned
@@ -151,7 +152,7 @@ func TestExtractAllResponses_EmptyInput(t *testing.T) {
 
 func TestExtractAllResponses_NoValidHeaders(t *testing.T) {
 	// Test Case: Input without valid HTTP headers
-	output := "This is not a valid HTTP response"
+	output := []byte("This is not a valid HTTP response")
 	_, _, err := extractAllResponses(output)
 
 	// Check if an error is returned

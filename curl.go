@@ -129,7 +129,7 @@ func (curl *Curl) Request(url string) (*http.Response, []http.Header, error) {
 	}
 
 	// Get the full output from stdout
-	output := stdout.String()
+	output := stdout.Bytes()
 
 	responses, lastBody, err := extractAllResponses(output)
 	if err != nil {
@@ -145,13 +145,13 @@ func (curl *Curl) Request(url string) (*http.Response, []http.Header, error) {
 	}
 
 	lastHeaders := responses[len(responses)-1]
-	statusLine := strings.Split(lastHeaders, "\n")[0]
-	statusParts := strings.Split(statusLine, " ")
+	statusLine := bytes.Split(lastHeaders, []byte("\n"))[0]
+	statusParts := bytes.Split(statusLine, []byte(" "))
 	if len(statusParts) < 2 {
 		return nil, nil, errors.New("unable to extract status code")
 	}
 
-	statusCode, err := getStatusCode(statusParts[1])
+	statusCode, err := getStatusCode(string(statusParts[1]))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -165,20 +165,21 @@ func (curl *Curl) Request(url string) (*http.Response, []http.Header, error) {
 	return &http.Response{
 		StatusCode: statusCode,
 		Header:     headers[len(headers)-1],
-		Body:       io.NopCloser(bytes.NewReader([]byte(lastBody))),
+		Body:       io.NopCloser(bytes.NewReader(lastBody)),
 	}, headers, nil
 }
 
 // extract headers/body respecting multi-responses (e.g. proxy + redirect)
-func extractAllResponses(output string) ([]string, string, error) {
-	responses := strings.Split(output, "\r\n\r\n")
-	var headers []string
-	var lastBody string
+func extractAllResponses(output []byte) ([][]byte, []byte, error) {
+	// Split the output into blocks separated by "\r\n\r\n"
+	blocks := bytes.Split(output, []byte("\r\n\r\n"))
+	var headers [][]byte
+	var lastBody []byte
 	lastHeaderIndex := -1
 
-	for i, block := range responses {
-		if strings.HasPrefix(block, "HTTP/") {
-			if len(strings.TrimSpace(block)) > len("HTTP/") {
+	for i, block := range blocks {
+		if bytes.HasPrefix(block, []byte("HTTP/")) {
+			if len(bytes.TrimSpace(block)) > len("HTTP/") {
 				headers = append(headers, block)
 				lastHeaderIndex = i
 			}
@@ -186,12 +187,12 @@ func extractAllResponses(output string) ([]string, string, error) {
 	}
 
 	// If a last valid HTTP response block was found, capture the body
-	if lastHeaderIndex != -1 && lastHeaderIndex+1 < len(responses) {
-		lastBody = strings.Join(responses[lastHeaderIndex+1:], "\r\n\r\n")
+	if lastHeaderIndex != -1 && lastHeaderIndex+1 < len(blocks) {
+		lastBody = bytes.Join(blocks[lastHeaderIndex+1:], []byte("\r\n\r\n"))
 	}
 
 	if len(headers) == 0 {
-		return nil, "", errors.New("unable to extract valid HTTP responses")
+		return nil, nil, errors.New("unable to extract valid HTTP responses")
 	}
 
 	return headers, lastBody, nil
@@ -205,14 +206,14 @@ func getStatusCode(statusCode string) (int, error) {
 	return code, nil
 }
 
-func parseHeaders(headers string) http.Header {
+func parseHeaders(headers []byte) http.Header {
 	result := make(http.Header)
-	lines := strings.Split(headers, "\r\n")
+	lines := bytes.Split(headers, []byte("\r\n"))
 	for _, line := range lines {
-		if strings.Contains(line, ":") {
-			parts := strings.SplitN(line, ":", 2)
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
+		if bytes.Contains(line, []byte(":")) {
+			parts := bytes.SplitN(line, []byte(":"), 2)
+			key := strings.TrimSpace(string(parts[0]))
+			value := strings.TrimSpace(string(parts[1]))
 			result.Add(key, value)
 		}
 	}
