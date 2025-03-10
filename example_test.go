@@ -11,10 +11,10 @@ import (
 
 func Example_http() {
 	c := curl.New()
-	_, _, err := c.Request("http://httpbin.org/ip1")
+	_, _, _, err := c.Request("http://httpbin.org/ip1")
 	fmt.Println(err)
 
-	r, _, _ := c.Request("http://httpbin.org/ip")
+	r, _, _, _ := c.Request("http://httpbin.org/ip")
 	fmt.Println(r.StatusCode)
 	//Output:
 	//HTTP Error. Not Found (404)
@@ -45,7 +45,7 @@ func Example() {
 	// single flag setter
 	c.SetFlag("location", true)
 
-	resp, headers, err := c.Request("http://httpbin.org/ip")
+	resp, headers, _, err := c.Request("http://httpbin.org/ip")
 	if err != nil {
 		log.Fatalln(err)
 	}

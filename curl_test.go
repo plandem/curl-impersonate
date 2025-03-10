@@ -12,7 +12,7 @@ func TestCurlLogic(t *testing.T) {
 
 	// Test Case 1: Request to an invalid URL (should return a CurlError)
 	t.Run("Invalid URL", func(t *testing.T) {
-		_, _, err := c.Request("http://nonexistent-domain.example")
+		_, _, _, err := c.Request("http://nonexistent-domain.example")
 
 		// Check if the error is a CurlError
 		if !IsCurlError(err) {
@@ -42,7 +42,7 @@ func TestCurlLogic(t *testing.T) {
 		// Set a very short timeout to force a timeout error
 		c.Set(Flag("max-time", "1")) // Timeout after 1 second
 
-		_, _, err := c.Request("http://httpbin.org/delay/5") // This endpoint delays the response by 5 seconds
+		_, _, _, err := c.Request("http://httpbin.org/delay/5") // This endpoint delays the response by 5 seconds
 
 		// Check if the error is a CurlError
 		if !IsCurlError(err) {

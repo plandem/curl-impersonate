@@ -97,10 +97,11 @@ func (curl *Curl) SetFlag(name string, value interface{}) {
 	curl.flags.Set(name, value)
 }
 
-func (curl *Curl) Request(url string) (*http.Response, []http.Header, error) {
+// Request return http.Response to make it similar to other fetching libraries, but also returns underlying []byte of content for simpler usage without extra allocation to read resp.Body
+func (curl *Curl) Request(url string) (*http.Response, []http.Header, []byte, error) {
 	if !curl.isValid {
 		if err := curl.Validate(); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 
@@ -122,10 +123,10 @@ func (curl *Curl) Request(url string) (*http.Response, []http.Header, error) {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			exitCode := exitErr.ExitCode()
-			return nil, nil, &Error{ExitCode: exitCode}
+			return nil, nil, nil, &Error{ExitCode: exitCode}
 		}
 
-		return nil, nil, fmt.Errorf("unexpected error executing curl: %w. stderr: %s", err, stderr.String())
+		return nil, nil, nil, fmt.Errorf("unexpected error executing curl: %w. stderr: %s", err, stderr.String())
 	}
 
 	// Get the full output from stdout
@@ -133,7 +134,7 @@ func (curl *Curl) Request(url string) (*http.Response, []http.Header, error) {
 
 	responses, lastBody, err := extractAllResponses(output)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	var headers []http.Header
@@ -148,15 +149,15 @@ func (curl *Curl) Request(url string) (*http.Response, []http.Header, error) {
 	statusLine := bytes.Split(lastHeaders, []byte("\n"))[0]
 	statusParts := bytes.Split(statusLine, []byte(" "))
 	if len(statusParts) < 2 {
-		return nil, nil, errors.New("unable to extract status code")
+		return nil, nil, nil, errors.New("unable to extract status code")
 	}
 
 	statusCode, err := getStatusCode(string(statusParts[1]))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if statusCode >= 400 {
-		return nil, nil, &HTTPError{
+		return nil, nil, nil, &HTTPError{
 			StatusCode: statusCode,
 			Status:     http.StatusText(statusCode),
 		}
@@ -166,29 +167,41 @@ func (curl *Curl) Request(url string) (*http.Response, []http.Header, error) {
 		StatusCode: statusCode,
 		Header:     headers[len(headers)-1],
 		Body:       io.NopCloser(bytes.NewReader(lastBody)),
-	}, headers, nil
+	}, headers, lastBody, nil
 }
 
 // extract headers/body respecting multi-responses (e.g. proxy + redirect)
 func extractAllResponses(output []byte) ([][]byte, []byte, error) {
-	// Split the output into blocks separated by "\r\n\r\n"
-	blocks := bytes.Split(output, []byte("\r\n\r\n"))
 	var headers [][]byte
 	var lastBody []byte
 	lastHeaderIndex := -1
 
-	for i, block := range blocks {
-		if bytes.HasPrefix(block, []byte("HTTP/")) {
-			if len(bytes.TrimSpace(block)) > len("HTTP/") {
-				headers = append(headers, block)
-				lastHeaderIndex = i
-			}
+	// Track the current position in the original buffer
+	pos := 0
+
+	for {
+		// Find the next "\r\n\r\n" delimiter
+		end := bytes.Index(output[pos:], []byte("\r\n\r\n"))
+		if end == -1 {
+			break
 		}
+
+		// Extract the current block
+		block := output[pos : pos+end]
+
+		// Check if the block starts with "HTTP/"
+		if bytes.HasPrefix(block, []byte("HTTP/")) && len(bytes.TrimSpace(block)) > len("HTTP/") {
+			headers = append(headers, block)
+			lastHeaderIndex = len(headers) - 1
+		}
+
+		// Move the position past the current block and the delimiter
+		pos += end + len("\r\n\r\n")
 	}
 
-	// If a last valid HTTP response block was found, capture the body
-	if lastHeaderIndex != -1 && lastHeaderIndex+1 < len(blocks) {
-		lastBody = bytes.Join(blocks[lastHeaderIndex+1:], []byte("\r\n\r\n"))
+	// If a last valid HTTP response block was found, capture the body content
+	if lastHeaderIndex != -1 {
+		lastBody = output[pos:]
 	}
 
 	if len(headers) == 0 {
